@@ -1,17 +1,24 @@
 {
-  "deadline": "2027-06-07 09:00:00",
-  "beforeText": "距高考还剩 <color=FFD700>{0} 天 {1} 时</color>",
-  "afterText": "距高考开始过去 <color=FF6347>{0} 天 {1} 时</color>",
-  "lightIntensity": 2.5,
-  "lightColor": "FFFFFF",
-  "enableShadow": true,
-  "minWindStrength": 0.8,
-  "maxWindStrength": 3.5,
-  "minGustInterval": 3,
-  "maxGustInterval": 10,
-  "minGustDuration": 1.5,
-  "maxGustDuration": 5,
-  "windRandomness": 0.7,
-  "clothVertexDensity": 0.6,
-  "textureUpdateRateScale": 1.0
+  // ===================== 倒计时与文案 =====================
+  "deadline": "2027-06-07 09:00:00", // 倒计时目标时间，固定格式：年-月-日 时:分:秒
+  "beforeText": "距离高考还有 {0} 天 {1} 小时", // 倒计时结束前显示的文案，{0}=剩余天数 {1}=剩余小时数
+  "afterText": "高考已过去 {0} 天 {1} 小时", // 倒计时结束后显示的文案，{0}=已过天数 {1}=已过小时数
+
+  // ===================== 灯光配置 =====================
+  "lightIntensity": 2.5, // 聚光灯亮度，数值越大布料越亮，推荐范围 0.5 ~ 5
+  "lightColor": "FFFFFF", // 灯光颜色，6位十六进制RGB色值，FFFFFF=白光
+  "enableShadow": true, // 是否开启横幅投影，true=有阴影更立体，false=关闭更干净
+
+  // ===================== 风力配置 =====================
+  "minWindStrength": 0.8, // 阵风最小风力强度，数值越小风越柔，越大吹得越猛
+  "maxWindStrength": 3.5, // 阵风最大风力强度，每次阵风会在最小~最大之间随机
+  "minGustInterval": 3, // 两次阵风之间的最短间隔，单位：秒，数值越大风越不频繁
+  "maxGustInterval": 10, // 两次阵风之间的最长间隔，单位：秒
+  "minGustDuration": 1.5, // 单次阵风的最短持续时间，单位：秒
+  "maxGustDuration": 5, // 单次阵风的最长持续时间，单位：秒
+  "windRandomness": 0.7, // 风力/时长的随机波动幅度，0=完全固定，1=波动最大，推荐0.3~0.8
+
+  // ===================== 画质与性能 =====================
+  "clothVertexDensity": 0.6, // 布料顶点密度，数值越高布料越细腻、褶皱越自然，但性能消耗越大
+  "textureUpdateRateScale": 1 // 文字刷新速率倍率，1=正常，调小可降低刷新频率节省性能
 }

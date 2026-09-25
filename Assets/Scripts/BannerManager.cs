@@ -1,6 +1,7 @@
 using UnityEngine;
 using System.IO;
 using System;
+using System.Text.Json;
 
 public class BannerManager : MonoBehaviour
 {
@@ -20,11 +21,10 @@ public class BannerManager : MonoBehaviour
         if (mainCamera == null)
             mainCamera = Camera.main;
 
-        // ===== 背景透明化设置 =====
+        // 背景纯透明 + 强制关闭天空盒
         mainCamera.clearFlags = CameraClearFlags.SolidColor;
-        mainCamera.backgroundColor = new Color(0, 0, 0, 0); // 纯透明背景
-        RenderSettings.skybox = null; // 强制关闭天空盒
-                                      // ==========================
+        mainCamera.backgroundColor = new Color(0, 0, 0, 0);
+        RenderSettings.skybox = null;
 
         LoadConfig();
         if (_config == null) return;
@@ -46,9 +46,27 @@ public class BannerManager : MonoBehaviour
         }
 
         string json = File.ReadAllText(configPath);
-        _config = JsonUtility.FromJson<BannerConfig>(json);
+
+        // System.Text.Json 核心配置
+        var jsonOptions = new JsonSerializerOptions
+        {
+            ReadCommentHandling = JsonCommentHandling.Skip,       // 支持 // 和 /* */ 注释，自动跳过
+            PropertyNameCaseInsensitive = true,                    // 字段名不区分大小写，容错更高
+            AllowTrailingCommas = true,                           // 允许最后一个字段后带逗号
+        };
+
+        _config = JsonSerializer.Deserialize<BannerConfig>(json, jsonOptions);
         _deadline = DateTime.ParseExact(_config.deadline, "yyyy-MM-dd HH:mm:ss", null);
         _updateInterval = 3600f / _config.textureUpdateRateScale;
+    }
+
+    // 保留序列化方法，需要自动生成配置时可自行调用
+    private void SaveConfig(string path)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(path));
+        var jsonOptions = new JsonSerializerOptions { WriteIndented = true };
+        string json = JsonSerializer.Serialize(_config, jsonOptions);
+        File.WriteAllText(path, json);
     }
 
     private void CreateBanner()
@@ -97,7 +115,7 @@ public class BannerManager : MonoBehaviour
         }
         cloth.coefficients = coeffs;
 
-        // 挂载功能组件（已移除碰撞体和交互组件）
+        // 挂载功能组件（已移除碰撞和交互）
         var texGen = _bannerObj.AddComponent<BannerTextureGenerator>();
         texGen.Initialize(_bannerWidth, _bannerHeight);
 
