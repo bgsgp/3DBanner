@@ -17,20 +17,20 @@ public class BannerTextureGenerator : MonoBehaviour
         int texHeight = 256;
         int texWidth = Mathf.RoundToInt(texHeight * aspect);
 
-        _rt = new RenderTexture(texWidth, texHeight, 0, RenderTextureFormat.ARGB32);
+        _rt = new RenderTexture(texWidth, texHeight, 24, RenderTextureFormat.ARGB32);
         _rt.filterMode = FilterMode.Bilinear;
 
         // 2. 创建离屏渲染相机
         GameObject camObj = new GameObject("BannerRenderCam");
-        camObj.transform.position = new Vector3(0, -1000, 0); // 藏在视野外
+        camObj.transform.position = new Vector3(0, -1000, 0); // 放在视线外
         _renderCam = camObj.AddComponent<Camera>();
         _renderCam.orthographic = true;
         _renderCam.clearFlags = CameraClearFlags.SolidColor;
-        _renderCam.backgroundColor = new Color(0.78f, 0f, 0f, 1f); // 正红底色
-        _renderCam.enabled = false; // 禁用自动渲染，改为手动调用
+        _renderCam.backgroundColor = new Color(0.78f, 0f, 0f, 1f); // 强行填充正红底色
+        _renderCam.enabled = false;
         _renderCam.targetTexture = _rt;
 
-        // 3. 创建 UGUI Canvas
+        // 3. 创建 UI Canvas
         GameObject canvasObj = new GameObject("BannerCanvas");
         canvasObj.transform.SetParent(camObj.transform, false);
         Canvas canvas = canvasObj.AddComponent<Canvas>();
@@ -49,26 +49,40 @@ public class BannerTextureGenerator : MonoBehaviour
         rect.offsetMax = Vector2.zero;
 
         _uiText.alignment = TextAnchor.MiddleCenter;
-        _uiText.fontSize = Mathf.RoundToInt(texHeight * 0.66f);
+        _uiText.fontSize = Mathf.RoundToInt(texHeight * 0.65f);
         _uiText.supportRichText = true;
-        _uiText.color = Color.white;
+        _uiText.color = Color.yellow; // 设置默认金黄色文字，增加对比度
+        _uiText.fontStyle = FontStyle.Bold; // 新增：强制字体加粗
 
-        // 加载字体
+        // 字体自动容错
         Font msYaHei = Font.CreateDynamicFontFromOSFont("Microsoft YaHei", _uiText.fontSize);
         _uiText.font = msYaHei != null ? msYaHei : Resources.GetBuiltinResource<Font>("Arial.ttf");
 
-        // 5. 应用到横幅材质
-        _bannerMat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
-        _bannerMat.mainTexture = _rt;
-        _bannerMat.color = Color.white; // 基础色设为白，底色由相机背景控制
+        // 5. 自动兼容 Shader (解决粉紫色问题)
+        Shader bannerShader = Shader.Find("Universal Render Pipeline/Lit");
+        if (bannerShader == null) bannerShader = Shader.Find("Standard");
+        if (bannerShader == null) bannerShader = Shader.Find("Unlit/Texture");
+
+        _bannerMat = new Material(bannerShader);
+
+        // 双向兼容 URP(_BaseMap) 与 标准管线(_MainTex)
+        if (_bannerMat.HasProperty("_BaseMap")) _bannerMat.SetTexture("_BaseMap", _rt);
+        if (_bannerMat.HasProperty("_MainTex")) _bannerMat.SetTexture("_MainTex", _rt);
+
         GetComponent<Renderer>().material = _bannerMat;
     }
 
     public void RefreshText(string formattedText)
     {
-        // 转换富文本格式
+        if (_uiText == null || _renderCam == null) return;
+
+        // 转换格式
         _uiText.text = Regex.Replace(formattedText, @"<color=([0-9A-Fa-f]{6})>", "<color=#$1>");
-        // 手动渲染一帧更新纹理
+
+        // 关键步骤：强制 UGUI 立即计算网格与排版，防止渲染出空白图
+        Canvas.ForceUpdateCanvases();
+
+        // 手动拍一张照更新 RenderTexture
         _renderCam.Render();
     }
 

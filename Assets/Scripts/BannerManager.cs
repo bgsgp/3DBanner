@@ -72,9 +72,16 @@ public class BannerManager : MonoBehaviour
     private void CreateBanner()
     {
         float distance = 5f;
-        float viewHeightRatio = 0.25f;
-        _bannerHeight = 2 * distance * Mathf.Tan(mainCamera.fieldOfView * 0.5f * Mathf.Deg2Rad) * viewHeightRatio;
-        _bannerWidth = _bannerHeight * 4f;
+
+        // 动态计算相机在 distance 距离下的真实视野高度和宽度
+        float frustumHeight = 2.0f * distance * Mathf.Tan(mainCamera.fieldOfView * 0.5f * Mathf.Deg2Rad);
+        float frustumWidth = frustumHeight * mainCamera.aspect;
+
+        // 让横幅宽度略微大于屏幕宽度（乘以1.02），防止布料收缩时露出屏幕边缘
+        _bannerWidth = frustumWidth * 1.02f;
+
+        // 高度可以设定为屏幕高度的 1/4（数值可自己微调）
+        _bannerHeight = frustumHeight * 0.25f;
 
         _bannerObj = new GameObject("Banner");
         _bannerObj.transform.SetParent(transform);
