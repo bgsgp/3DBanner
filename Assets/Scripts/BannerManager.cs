@@ -7,7 +7,6 @@ public class BannerManager : MonoBehaviour
     [Header("引用")]
     public Camera mainCamera;
 
-    // 类成员字段（方法外、类内声明）
     private BannerConfig _config;
     private GameObject _bannerObj;
     private float _bannerWidth;
@@ -21,6 +20,12 @@ public class BannerManager : MonoBehaviour
         if (mainCamera == null)
             mainCamera = Camera.main;
 
+        // ===== 背景透明化设置 =====
+        mainCamera.clearFlags = CameraClearFlags.SolidColor;
+        mainCamera.backgroundColor = new Color(0, 0, 0, 0); // 纯透明背景
+        RenderSettings.skybox = null; // 强制关闭天空盒
+                                      // ==========================
+
         LoadConfig();
         if (_config == null) return;
 
@@ -29,7 +34,6 @@ public class BannerManager : MonoBehaviour
         RefreshBannerText();
     }
 
-    // 替换成纯净版加载逻辑
     private void LoadConfig()
     {
         string configPath = Path.Combine(Application.streamingAssetsPath, "banner_config.json");
@@ -93,18 +97,12 @@ public class BannerManager : MonoBehaviour
         }
         cloth.coefficients = coeffs;
 
-        // 挂载功能组件
+        // 挂载功能组件（已移除碰撞体和交互组件）
         var texGen = _bannerObj.AddComponent<BannerTextureGenerator>();
         texGen.Initialize(_bannerWidth, _bannerHeight);
 
         var windCtrl = _bannerObj.AddComponent<BannerWindController>();
         windCtrl.Init(_config);
-
-        MeshCollider collider = _bannerObj.AddComponent<MeshCollider>();
-        collider.sharedMesh = bannerMesh;
-
-        var interaction = _bannerObj.AddComponent<BannerInteraction>();
-        interaction.Init(Path.Combine(Application.streamingAssetsPath, "banner_config.json"));
     }
 
     private Mesh GenPlaneMesh(float width, float height, int xSeg, int ySeg)
