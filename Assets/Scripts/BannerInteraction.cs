@@ -37,7 +37,7 @@ public class BannerInteraction : MonoBehaviour
     {
         if (!File.Exists(_configPath))
         {
-            Debug.LogError($"配置文件不存在：{_configPath}");
+            UnityEngine.Debug.LogError($"配置文件不存在：{_configPath}");
             return;
         }
 
@@ -48,7 +48,7 @@ public class BannerInteraction : MonoBehaviour
         }
         catch (System.Exception e)
         {
-            Debug.LogError($"打开配置失败：{e.Message}");
+            UnityEngine.Debug.LogError($"打开配置失败：{e.Message}");
         }
     }
 }
