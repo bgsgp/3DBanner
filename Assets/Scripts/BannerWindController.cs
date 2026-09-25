@@ -16,7 +16,6 @@ public class BannerWindController : MonoBehaviour
     {
         _config = config;
         _cloth = GetComponent<Cloth>();
-
         _currentWind = Vector3.zero;
         _gustCooldown = Random.Range(config.minGustInterval, config.maxGustInterval);
     }
@@ -30,7 +29,6 @@ public class BannerWindController : MonoBehaviour
             _gustRemaining -= Time.deltaTime;
             if (_gustRemaining <= 0f)
             {
-                // 阵风结束，恢复无风
                 _targetWind = Vector3.zero;
                 _isGusting = false;
                 _gustCooldown = Random.Range(_config.minGustInterval, _config.maxGustInterval);
@@ -45,7 +43,6 @@ public class BannerWindController : MonoBehaviour
             }
         }
 
-        // 平滑过渡风力，避免突变
         _currentWind = Vector3.Lerp(_currentWind, _targetWind, Time.deltaTime * 2f);
         _cloth.externalAcceleration = _currentWind;
     }
@@ -54,16 +51,20 @@ public class BannerWindController : MonoBehaviour
     {
         _isGusting = true;
 
-        // 基础风力 + 随机度波动
         float baseStrength = Random.Range(_config.minWindStrength, _config.maxWindStrength);
         float randomFactor = 1f + Random.Range(-_config.windRandomness, _config.windRandomness);
         float finalStrength = Mathf.Max(0.2f, baseStrength * randomFactor);
 
-        // 三维完全随机风向
-        Vector3 windDir = Random.insideUnitSphere.normalized;
+        // 优化：约束风向。让风主要朝向横幅吹(Z轴)，带有轻微的水平偏移(X)和垂直偏移(Y)
+        // 而不是之前的 Random.insideUnitSphere.normalized（可能会反向吹或直接往天上吹）
+        Vector3 windDir = new Vector3(
+            Random.Range(-0.5f, 0.5f), // X轴轻微摇摆
+            Random.Range(-0.2f, 0.2f), // Y轴极小浮动
+            Random.Range(0.5f, 1f)     // Z轴主风力
+        ).normalized;
+
         _targetWind = windDir * finalStrength;
 
-        // 阵风持续时间
         float baseDuration = Random.Range(_config.minGustDuration, _config.maxGustDuration);
         float durationFactor = 1f + Random.Range(-_config.windRandomness, _config.windRandomness);
         _gustRemaining = Mathf.Max(0.5f, baseDuration * durationFactor);

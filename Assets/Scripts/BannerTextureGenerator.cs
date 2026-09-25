@@ -1,77 +1,81 @@
 using UnityEngine;
-using System.Collections.Generic;
+using UnityEngine.UI;
 using System.Text.RegularExpressions;
 
 [RequireComponent(typeof(Renderer))]
 public class BannerTextureGenerator : MonoBehaviour
 {
-    private Texture2D _bannerTexture;
-    private Renderer _bannerRenderer;
-    private Font _msYaHeiFont;
-    private int _texWidth;
-    private int _texHeight;
-
-    private void Awake()
-    {
-        // 加载系统微软雅黑字体，不存在则回退到Arial
-        _msYaHeiFont = Font.CreateDynamicFontFromOSFont("Microsoft YaHei", 32);
-        if (_msYaHeiFont == null)
-        {
-            _msYaHeiFont = Font.CreateDynamicFontFromOSFont("Arial", 32);
-            Debug.LogWarning("未找到微软雅黑字体，已自动回退");
-        }
-    }
+    private Camera _renderCam;
+    private Text _uiText;
+    private RenderTexture _rt;
+    private Material _bannerMat;
 
     public void Initialize(float worldWidth, float worldHeight)
     {
-        _bannerRenderer = GetComponent<Renderer>();
-        
-        // 按世界尺寸比例计算纹理分辨率
+        // 1. 计算纹理尺寸
         float aspect = worldWidth / worldHeight;
-        _texHeight = 256;
-        _texWidth = Mathf.RoundToInt(_texHeight * aspect);
-        
-        _bannerTexture = new Texture2D(_texWidth, _texHeight, TextureFormat.RGBA32, false)
-        {
-            filterMode = FilterMode.Bilinear
-        };
+        int texHeight = 256;
+        int texWidth = Mathf.RoundToInt(texHeight * aspect);
 
-        // 初始化红布材质
-        Material mat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
-        mat.mainTexture = _bannerTexture;
-        mat.color = new Color(0.78f, 0f, 0f, 1f); // 正红底色
-        _bannerRenderer.material = mat;
+        _rt = new RenderTexture(texWidth, texHeight, 0, RenderTextureFormat.ARGB32);
+        _rt.filterMode = FilterMode.Bilinear;
+
+        // 2. 创建离屏渲染相机
+        GameObject camObj = new GameObject("BannerRenderCam");
+        camObj.transform.position = new Vector3(0, -1000, 0); // 藏在视野外
+        _renderCam = camObj.AddComponent<Camera>();
+        _renderCam.orthographic = true;
+        _renderCam.clearFlags = CameraClearFlags.SolidColor;
+        _renderCam.backgroundColor = new Color(0.78f, 0f, 0f, 1f); // 正红底色
+        _renderCam.enabled = false; // 禁用自动渲染，改为手动调用
+        _renderCam.targetTexture = _rt;
+
+        // 3. 创建 UGUI Canvas
+        GameObject canvasObj = new GameObject("BannerCanvas");
+        canvasObj.transform.SetParent(camObj.transform, false);
+        Canvas canvas = canvasObj.AddComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceCamera;
+        canvas.worldCamera = _renderCam;
+
+        // 4. 创建 UI Text
+        GameObject textObj = new GameObject("BannerText");
+        textObj.transform.SetParent(canvasObj.transform, false);
+        _uiText = textObj.AddComponent<Text>();
+
+        RectTransform rect = textObj.GetComponent<RectTransform>();
+        rect.anchorMin = Vector2.zero;
+        rect.anchorMax = Vector2.one;
+        rect.offsetMin = Vector2.zero;
+        rect.offsetMax = Vector2.zero;
+
+        _uiText.alignment = TextAnchor.MiddleCenter;
+        _uiText.fontSize = Mathf.RoundToInt(texHeight * 0.66f);
+        _uiText.supportRichText = true;
+        _uiText.color = Color.white;
+
+        // 加载字体
+        Font msYaHei = Font.CreateDynamicFontFromOSFont("Microsoft YaHei", _uiText.fontSize);
+        _uiText.font = msYaHei != null ? msYaHei : Resources.GetBuiltinResource<Font>("Arial.ttf");
+
+        // 5. 应用到横幅材质
+        _bannerMat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+        _bannerMat.mainTexture = _rt;
+        _bannerMat.color = Color.white; // 基础色设为白，底色由相机背景控制
+        GetComponent<Renderer>().material = _bannerMat;
     }
 
     public void RefreshText(string formattedText)
     {
-        RenderTexture rt = RenderTexture.GetTemporary(_texWidth, _texHeight, 0, RenderTextureFormat.ARGB32);
-        RenderTexture.active = rt;
-        
-        // 填充红色底色
-        GL.Clear(true, true, new Color(0.78f, 0f, 0f, 1f));
+        // 转换富文本格式
+        _uiText.text = Regex.Replace(formattedText, @"<color=([0-9A-Fa-f]{6})>", "<color=#$1>");
+        // 手动渲染一帧更新纹理
+        _renderCam.Render();
+    }
 
-        // 字号 = 横幅高度的 2/3
-        int fontSize = Mathf.RoundToInt(_texHeight * 0.66f);
-        GUIStyle style = new GUIStyle(GUI.skin.label)
-        {
-            font = _msYaHeiFont,
-            fontSize = fontSize,
-            alignment = TextAnchor.MiddleCenter,
-            richText = true
-        };
-
-        // 转换为Unity富文本格式（<color=FF0000> → <color=#FF0000>）
-        string unityRichText = Regex.Replace(formattedText, 
-            @"<color=([0-9A-Fa-f]{6})>", "<color=#$1>");
-
-        GUI.Label(new Rect(0, 0, _texWidth, _texHeight), unityRichText, style);
-
-        // 回写纹理
-        _bannerTexture.ReadPixels(new Rect(0, 0, _texWidth, _texHeight), 0, 0);
-        _bannerTexture.Apply();
-
-        RenderTexture.active = null;
-        RenderTexture.ReleaseTemporary(rt);
+    private void OnDestroy()
+    {
+        if (_rt != null) _rt.Release();
+        if (_renderCam != null) Destroy(_renderCam.gameObject);
+        if (_bannerMat != null) Destroy(_bannerMat);
     }
 }

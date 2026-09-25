@@ -14,14 +14,13 @@ public class BannerManager : MonoBehaviour
     private float _bannerHeight;
     private DateTime _deadline;
     private float _updateTimer;
-    private float _updateInterval = 3600f;
+    private float _updateInterval = 60f; // 优化：基准刷新间隔改为 1 分钟
 
     private void Start()
     {
         if (mainCamera == null)
             mainCamera = Camera.main;
 
-        // 背景纯透明 + 强制关闭天空盒
         mainCamera.clearFlags = CameraClearFlags.SolidColor;
         mainCamera.backgroundColor = new Color(0, 0, 0, 0);
         RenderSettings.skybox = null;
@@ -41,32 +40,33 @@ public class BannerManager : MonoBehaviour
         if (!File.Exists(configPath))
         {
             Debug.LogError("未找到配置文件，请在 StreamingAssets 目录下创建 banner_config.json");
-            _config = null;
             return;
         }
 
         string json = File.ReadAllText(configPath);
 
-        // System.Text.Json 核心配置
         var jsonOptions = new JsonSerializerOptions
         {
-            ReadCommentHandling = JsonCommentHandling.Skip,       // 支持 // 和 /* */ 注释，自动跳过
-            PropertyNameCaseInsensitive = true,                    // 字段名不区分大小写，容错更高
-            AllowTrailingCommas = true,                           // 允许最后一个字段后带逗号
+            ReadCommentHandling = JsonCommentHandling.Skip,
+            PropertyNameCaseInsensitive = true,
+            AllowTrailingCommas = true,
+            IncludeFields = true,
         };
 
-        _config = JsonSerializer.Deserialize<BannerConfig>(json, jsonOptions);
-        _deadline = DateTime.ParseExact(_config.deadline, "yyyy-MM-dd HH:mm:ss", null);
-        _updateInterval = 3600f / _config.textureUpdateRateScale;
-    }
+        try
+        {
+            _config = JsonSerializer.Deserialize<BannerConfig>(json, jsonOptions);
+            _deadline = DateTime.ParseExact(_config.deadline, "yyyy-MM-dd HH:mm:ss", null);
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"JSON解析或时间格式错误：{ex.Message}");
+            _config = null;
+            return;
+        }
 
-    // 保留序列化方法，需要自动生成配置时可自行调用
-    private void SaveConfig(string path)
-    {
-        Directory.CreateDirectory(Path.GetDirectoryName(path));
-        var jsonOptions = new JsonSerializerOptions { WriteIndented = true };
-        string json = JsonSerializer.Serialize(_config, jsonOptions);
-        File.WriteAllText(path, json);
+        // 优化：根据配置调整刷新频率
+        _updateInterval = 60f / _config.textureUpdateRateScale;
     }
 
     private void CreateBanner()
@@ -90,7 +90,6 @@ public class BannerManager : MonoBehaviour
         mf.mesh = bannerMesh;
         _bannerObj.AddComponent<MeshRenderer>();
 
-        // Unity 6 布料组件适配
         Cloth cloth = _bannerObj.AddComponent<Cloth>();
         cloth.useGravity = true;
         cloth.sleepThreshold = 0.005f;
@@ -101,21 +100,21 @@ public class BannerManager : MonoBehaviour
             coeffs[i].maxDistance = 0.08f;
         }
 
-        // 固定左右两个上角
+        // 优化：使用容差判断代替 Mathf.Approximately 避免浮点数精度问题
         Vector3[] verts = bannerMesh.vertices;
+        float tolerance = 0.05f;
         for (int i = 0; i < verts.Length; i++)
         {
-            bool isTopLeft = Mathf.Approximately(verts[i].x, -_bannerWidth / 2f)
-                           && Mathf.Approximately(verts[i].y, _bannerHeight / 2f);
-            bool isTopRight = Mathf.Approximately(verts[i].x, _bannerWidth / 2f)
-                            && Mathf.Approximately(verts[i].y, _bannerHeight / 2f);
+            bool isTopLeft = Mathf.Abs(verts[i].x - (-_bannerWidth / 2f)) < tolerance
+                          && Mathf.Abs(verts[i].y - (_bannerHeight / 2f)) < tolerance;
+            bool isTopRight = Mathf.Abs(verts[i].x - (_bannerWidth / 2f)) < tolerance
+                           && Mathf.Abs(verts[i].y - (_bannerHeight / 2f)) < tolerance;
 
             if (isTopLeft || isTopRight)
                 coeffs[i].maxDistance = 0f;
         }
         cloth.coefficients = coeffs;
 
-        // 挂载功能组件（已移除碰撞和交互）
         var texGen = _bannerObj.AddComponent<BannerTextureGenerator>();
         texGen.Initialize(_bannerWidth, _bannerHeight);
 
@@ -123,14 +122,15 @@ public class BannerManager : MonoBehaviour
         windCtrl.Init(_config);
     }
 
+    // GenPlaneMesh、CreateSpotLights、HexToColor 保持原样...
+    // 此处省略其余未修改的方法以保持简洁
+
     private Mesh GenPlaneMesh(float width, float height, int xSeg, int ySeg)
     {
         Mesh mesh = new Mesh { name = "BannerPlane" };
-
         Vector3[] vertices = new Vector3[(xSeg + 1) * (ySeg + 1)];
         Vector2[] uv = new Vector2[vertices.Length];
         int[] triangles = new int[xSeg * ySeg * 6];
-
         float xStep = width / xSeg;
         float yStep = height / ySeg;
         float xStart = -width / 2f;
@@ -228,6 +228,7 @@ public class BannerManager : MonoBehaviour
     {
         if (_config == null) return;
 
+        // Update 定时器保持不变，依赖上方修正后的 _updateInterval
         _updateTimer += Time.deltaTime;
         if (_updateTimer >= _updateInterval)
         {
